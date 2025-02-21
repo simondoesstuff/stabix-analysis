@@ -3,26 +3,26 @@
 ### Run tabix experiments (snakemake)
 [stabix_mamba.yml](https://github.com/kristen-schneider/stabix/blob/main/stabix_mamba.yml)
 ```
-mamba create -n stabix -f stabix_mamba.yml
+mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
 snakemake -s scripts/bash/tabix_time.smk
 ```
 or
 ```
-mamba create -n stabix -f stabix_mamba.yml
+mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
 sbatch run_tabix_snakemake.sh
 ```
 
 ### Run STABIX experiments (snakemake)
 ```
-mamba create -n stabix -f stabix_mamba.yml
+mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
 snakemake -s scripts/bash/stabix_time.smk
 ```
 or
 ```
-mamba create -n stabix -f stabix_mamba.yml
+mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
 sbatch run_stabix_snakemake.sh
 ```
