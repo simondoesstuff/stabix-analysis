@@ -2,33 +2,37 @@
 
 ### Run tabix experiments (snakemake)
 [stabix_mamba.yml](https://github.com/kristen-schneider/stabix/blob/main/stabix_mamba.yml)
-```
+```bash
 mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
-snakemake -s scripts/bash/tabix_time.smk
+snakemake --configfile=$configfile -s scripts/bash/tabix_time.smk
 ```
-or
-```
+(where `$configfile` should point to a snakemake config file; like [this](data/test/test_tabix.yml))
+
+$~~~~~~~~$**or**
+```bash
 mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
 sbatch run_tabix_snakemake.sh
 ```
 
 ### Run STABIX experiments (snakemake)
-```
+```bash
 mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
-snakemake -s scripts/bash/stabix_time.smk
+snakemake --configfile=$configfile -s scripts/bash/stabix_time.smk
 ```
-or
-```
+(where `$configfile` should point to a snakemake config file; like [this](data/test/test_tabix.yml))
+
+$~~~~~~~~$**or**
+```bash
 mamba env create -n stabix -f stabix_mamba.yml
 mamba activate stabix
 sbatch run_stabix_snakemake.sh
 ```
 
 ### Plot main hexagonal heatmap
-```
+```bash
 python scripts/python/plotting_scripts/publish.py \
  --data /path/to/data/ \
  --bed data/bed_files/hg19.protein_coding.bed \
@@ -51,7 +55,7 @@ python scripts/python/plotting_scripts/publish.py \
 
 
 ### Plot combination results
-```
+```bash
 python scripts/python/plotting_scripts/plot_compare.py \
  --root /path/to/data/ \
  --bed data/bed_files/hg19.protein_coding.bed \
@@ -65,7 +69,7 @@ python scripts/python/plotting_scripts/plot_compare.py \
 </details>
 
 ### Plot column results
-```
+```bash
 python scripts/python/plotting_scripts/plot_columns.py \
  --decomp /path/to/data/ \
  --colors figures/colors.txt \
