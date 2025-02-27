@@ -8,17 +8,32 @@ import argparse
 from utils import get_column_names, get_genes
 
 
-chrm_col = 'chrm'
-pos_col = 'pos'
-pval_col = 'neglog10_pval_meta_hq'
-required_cols = { chrm_col, pos_col, pval_col }
+def guess_required_columns(all_columns):
+    chrm_col = 'chrm'
+    pos_col = 'pos'
+    pval_col = None
+
+    # infer pval column in a greedy way
+    for col in all_columns:
+        if 'pval' in col:
+            pval_col = col
+            break
+
+    if not pval_col:
+        raise RuntimeError("Unable to infer pval column. Didn't find a 'pval' in any column names.")
+
+    return [chrm_col, pos_col, pval_col]
 
 
-def setup_database(db_path: str, columns: List[str]) -> None:
+def setup_database(db_path: str, columns: List[str], required_cols: List[str]) -> None:
     # Verify required columns exist
-    if not required_cols.issubset(set(columns)):
+    if not set(required_cols).issubset(set(columns)):
         missing = required_cols - set(columns)
         raise ValueError(f"Missing required columns: {missing}")
+
+    chrm_col = required_cols[0]
+    pos_col = required_cols[1]
+    pval_col = required_cols[2]
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -52,9 +67,12 @@ def setup_database(db_path: str, columns: List[str]) -> None:
     conn.close()
 
 
-def load_data(db_path: str, tsv_path: str) -> None:
-    columns = get_column_names(tsv_path)
-    setup_database(db_path, columns)
+def load_data(db_path: str, tsv_path: str, columns: List[str], required_cols: List[str]) -> None:
+    setup_database(db_path, columns, required_cols)
+
+    chrm_col = required_cols[0]
+    pos_col = required_cols[1]
+    pval_col = required_cols[2]
 
     chrm_idx = columns.index(chrm_col)
     pos_idx = columns.index(pos_col)
@@ -108,8 +126,13 @@ def query_interval(
         chrm: str,
         start_pos: int,
         end_pos: int,
-        max_pval: float
+        max_pval: float,
+        required_columns: List[str]
 ) -> List[Tuple]:
+    chrm_col = required_columns[0]
+    pos_col = required_columns[1]
+    pval_col = required_columns[2]
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -208,8 +231,11 @@ def main():
     TSV_PATH = gwas
     pval = float(args.pval_threshold)
 
+    all_columns = get_column_names(TSV_PATH)
+    required_cols = guess_required_columns(all_columns)
+
     # prepare database
-    load_data(DB_PATH, TSV_PATH)
+    load_data(DB_PATH, TSV_PATH, all_columns, required_cols)
 
     output_tabix_query_file = os.path.join(args.out)
     out_file = open(output_tabix_query_file, 'a')
@@ -229,7 +255,8 @@ def main():
                     chrm=chrom,
                     start_pos=start,
                     end_pos=end,
-                    max_pval=pval)
+                    max_pval=pval,
+                    required_columns=required_cols)
 
                 end_time = time.time()
                 duration = end_time - start_time

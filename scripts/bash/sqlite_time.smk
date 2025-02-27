@@ -42,7 +42,6 @@ rule search:
     message: "Searching files with sqlite (applying pvalue threshold)."
     input:
         tsv_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv",
-        pval_indexes=f"{config.pval_indexes}"
     output:
         f"{config.tabix_dir}{{root_file_name}}_sqlite_output.txt"
     shell:
