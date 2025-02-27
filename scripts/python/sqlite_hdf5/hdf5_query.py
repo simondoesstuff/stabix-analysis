@@ -1,5 +1,4 @@
 import argparse
-import gzip
 import os
 import time
 
@@ -248,13 +247,13 @@ def main():
     TSV_PATH = gwas
     pval = float(args.pval_threshold)
 
-    with gzip.open(TSV_PATH, 'rt') as file:
+    with open(TSV_PATH, 'rt') as file:
         load_data(H5_PATH, file)
 
     output_tabix_query_file = os.path.join(args.out)
     out_file = open(output_tabix_query_file, 'a')
     out_file.truncate(0)
-    gwas_file_basename = os.path.basename(gwas).replace('.tsv.bgz', '')
+    gwas_file_basename = os.path.basename(gwas).replace('.tsv', '')
     out_file.write('GWAS file: {}\n'.format(gwas_file_basename))
 
     with gzip.open(TSV_PATH, 'rt') as file:
