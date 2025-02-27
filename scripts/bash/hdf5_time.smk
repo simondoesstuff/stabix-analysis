@@ -42,7 +42,6 @@ rule search:
     message: "Searching files with hdf5 (applying pvalue threshold)."
     input:
         tsv_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv",
-        pval_indexes=f"{config.pval_indexes}"
     output:
         f"{config.tabix_dir}{{root_file_name}}_hdf5_output.txt"
     shell:

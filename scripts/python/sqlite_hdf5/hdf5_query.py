@@ -7,10 +7,10 @@ import numpy as np
 from typing import List, Tuple, Dict
 import csv
 
-from utils import get_column_names, get_genes
+from utils import get_column_names, get_genes, guess_pval_col
 
 
-def setup_dataset(h5_path: str, columns: List[str]) -> None:
+def setup_dataset(h5_path: str, columns: List[str], pval_col) -> None:
     """
     Create or open HDF5 file and set up datasets for genomic data.
 
@@ -19,10 +19,19 @@ def setup_dataset(h5_path: str, columns: List[str]) -> None:
         columns: List of column names from TSV header
     """
     # Verify required columns exist
-    required_cols = {'chrm', 'pos', 'ref', 'alt', 'pval'}
+    required_cols = {'chrm', 'pos', 'ref', 'alt', pval_col}
     if not required_cols.issubset(set(columns)):
         missing = required_cols - set(columns)
         raise ValueError(f"Missing required columns: {missing}")
+
+    target_columns = list()
+    for col in columns:
+        if col == pval_col:
+            target_columns.append((pval_col, 'float64'))
+        elif col == 'pos':
+            target_columns.append((col, 'int32'))
+        else:
+            target_columns.append((col, h5py.string_dtype(encoding='utf-8')))
 
     with h5py.File(h5_path, 'w') as f:
         # Create a group for metadata
@@ -33,26 +42,17 @@ def setup_dataset(h5_path: str, columns: List[str]) -> None:
         # Create extendable datasets for each column
         variants = f.create_group('variants')
 
-        # Create datasets with appropriate types and compression
-        variants.create_dataset('chrm', (0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'), compression='gzip')
-        variants.create_dataset('pos', (0,), maxshape=(None,), dtype='int32', compression='gzip')
-        variants.create_dataset('ref', (0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'), compression='gzip')
-        variants.create_dataset('alt', (0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'), compression='gzip')
-        variants.create_dataset('pval', (0,), maxshape=(None,), dtype='float64', compression='gzip')
-
-        # Create datasets for extra columns
-        extra_cols = [col for col in columns if col not in required_cols]
-        for col in extra_cols:
-            variants.create_dataset(col, (0,), maxshape=(None,), dtype=h5py.string_dtype(encoding='utf-8'), compression='gzip')
+        for name, dtype in target_columns:
+            variants.create_dataset(name, (0,), maxshape=(None,), dtype=dtype, compression='gzip')
 
 
-def load_data(h5_path: str, tsv_file) -> None:
+def load_data(h5_path: str, tsv_path: str, pval_col) -> None:
     """
     Load data from TSV file into the HDF5 file.
     """
     # Get column names and set up file
-    columns = get_column_names(tsv_file)
-    setup_dataset(h5_path, columns)
+    columns = get_column_names(tsv_path)
+    setup_dataset(h5_path, columns, pval_col)
 
     # Find indices of required columns
     col_indices = {
@@ -60,37 +60,43 @@ def load_data(h5_path: str, tsv_file) -> None:
         'pos': columns.index('pos'),
         'ref': columns.index('ref'),
         'alt': columns.index('alt'),
-        'pval': columns.index('pval')
+        pval_col: columns.index(pval_col)
     }
 
     # Read all data first to determine array sizes
     data: Dict[str, List] = {col: [] for col in columns}
 
-    next(tsv_file)  # Skip header
-    tsv_reader = csv.reader(tsv_file, delimiter='\t')
+    with open(tsv_path, 'r') as tsv_file:
+        next(tsv_file)  # Skip header
+        tsv_reader = csv.reader(tsv_file, delimiter='\t')
 
-    for row in tsv_reader:
-        pval = row[col_indices['pval']]
+        for row in tsv_reader:
+            pval_idx = col_indices[pval_col]
 
-        if pval == 'NA':
-            continue
+            if pval_idx >= len(row):
+                continue
 
-        try:
-            # Store each column's data
-            for idx, col in enumerate(columns):
-                val = row[idx]
+            pval = row[pval_idx]
 
-                # Convert types for required numeric columns
-                if col == 'pos':
-                    val = int(val)
-                elif col == 'pval':
-                    val = val.upper().replace('EE', 'E')  # Fix scientific notation
-                    val = float(val)
+            if pval == 'NA':
+                continue
 
-                data[col].append(val)
-        except IndexError as e:
-            print(f"Warning: Error processing row {row}: {e}")
-            continue
+            try:
+                # Store each column's data
+                for idx, col in enumerate(columns):
+                    val = row[idx]
+
+                    # Convert types for required numeric columns
+                    if col == 'pos':
+                        val = int(val)
+                    elif col == pval_col:
+                        val = val.upper().replace('EE', 'E')  # Fix scientific notation
+                        val = float(val)
+
+                    data[col].append(val)
+            except IndexError as e:
+                print(f"Warning: Error processing row {row}: {e}")
+                continue
 
     # Write data to HDF5 file
     with h5py.File(h5_path, 'a') as tsv_file:
@@ -102,7 +108,7 @@ def load_data(h5_path: str, tsv_file) -> None:
             dataset = variants[col]
             dataset.resize((n_rows,))
 
-            if col in {'pos', 'pval'}:
+            if col in {'pos', pval_col}:
                 # Numeric arrays
                 dataset[:] = np.array(data[col])
             else:
@@ -115,7 +121,8 @@ def query_interval(
         chrm: str,
         start_pos: int,
         end_pos: int,
-        max_pval: float
+        max_pval: float,
+        pval_col
 ) -> Tuple[List[Tuple], List[str]]:
     """
     Query variants within a genomic interval that meet the p-value threshold.
@@ -140,7 +147,7 @@ def query_interval(
 
         # Get positions and p-values
         pos_array = variants['pos'][:]
-        pval_array = variants['pval'][:]
+        pval_array = variants[pval_col][:]
 
         # Create boolean masks for each condition
         pos_match = (pos_array >= start_pos) & (pos_array <= end_pos)
@@ -247,17 +254,16 @@ def main():
     TSV_PATH = gwas
     pval = float(args.pval_threshold)
 
-    with open(TSV_PATH, 'rt') as file:
-        load_data(H5_PATH, file)
+    columns = get_column_names(TSV_PATH)
+    pval_col = guess_pval_col(columns)
+
+    load_data(H5_PATH, TSV_PATH, pval_col)
 
     output_tabix_query_file = os.path.join(args.out)
     out_file = open(output_tabix_query_file, 'a')
     out_file.truncate(0)
     gwas_file_basename = os.path.basename(gwas).replace('.tsv', '')
     out_file.write('GWAS file: {}\n'.format(gwas_file_basename))
-
-    with gzip.open(TSV_PATH, 'rt') as file:
-        load_data(H5_PATH, file)
 
     genes = get_genes(args.bed)
     for gene in genes:
@@ -271,7 +277,8 @@ def main():
                     chrm=chrom,
                     start_pos=start,
                     end_pos=end,
-                    max_pval=pval)
+                    max_pval=pval,
+                    pval_col=pval_col)
 
                 end_time = time.time()
                 duration = end_time - start_time
