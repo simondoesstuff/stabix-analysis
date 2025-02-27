@@ -5,24 +5,7 @@ from typing import List, Tuple
 import csv
 import argparse
 
-from utils import get_column_names, get_genes
-
-
-def guess_required_columns(all_columns):
-    chrm_col = 'chrm'
-    pos_col = 'pos'
-    pval_col = None
-
-    # infer pval column in a greedy way
-    for col in all_columns:
-        if 'pval' in col:
-            pval_col = col
-            break
-
-    if not pval_col:
-        raise RuntimeError("Unable to infer pval column. Didn't find a 'pval' in any column names.")
-
-    return [chrm_col, pos_col, pval_col]
+from utils import get_column_names, get_genes, guess_pval_col
 
 
 def setup_database(db_path: str, columns: List[str], required_cols: List[str]) -> None:
@@ -232,7 +215,7 @@ def main():
     pval = float(args.pval_threshold)
 
     all_columns = get_column_names(TSV_PATH)
-    required_cols = guess_required_columns(all_columns)
+    required_cols = ["chrm", "pos", guess_pval_col(all_columns)]
 
     # prepare database
     load_data(DB_PATH, TSV_PATH, all_columns, required_cols)
