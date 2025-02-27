@@ -1,0 +1,38 @@
+ukbb_manifest:
+  "data/UKBB/ten-ukbb-manifest.tsv"
+
+bed_file:
+  "data/bed_files/hg19.protein_coding.bed"
+
+pval_threshold:
+  7e-2
+
+pval_indexes:
+  "data/test/ten_pvals.txt"
+
+root_dir:
+  "./"
+
+conda_env_dir:
+  "conda_envs/"
+
+scripts_dir:
+  "scripts/python/"
+
+gwas_dir:
+  "data/gwas/"
+
+tabix_dir:
+  "tabix_output/"
+
+wget_prefix:
+  "https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_flat_files/"
+
+# TODO: why was this not in the example?
+##  Stabix-cpp related
+
+config_dir:
+  "stabix_config/"
+
+bin_dir:
+  "../stabix/build/bin/"
