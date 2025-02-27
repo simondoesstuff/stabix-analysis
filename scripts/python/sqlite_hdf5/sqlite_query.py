@@ -5,13 +5,17 @@ from typing import List, Tuple
 import csv
 import argparse
 
-import tabix_utils
 from utils import get_column_names, get_genes
+
+
+chrm_col = 'chrm'
+pos_col = 'pos'
+pval_col = 'neglog10_pval_meta_hq'
+required_cols = { chrm_col, pos_col, pval_col }
 
 
 def setup_database(db_path: str, columns: List[str]) -> None:
     # Verify required columns exist
-    required_cols = {'chrm', 'pos', 'pval'}
     if not required_cols.issubset(set(columns)):
         missing = required_cols - set(columns)
         raise ValueError(f"Missing required columns: {missing}")
@@ -21,79 +25,79 @@ def setup_database(db_path: str, columns: List[str]) -> None:
 
     # Build CREATE TABLE statement dynamically
     # Start with required columns
-    col_defs = [
-        "chrm TEXT",
-        "pos INTEGER",
-        "pval REAL"
-    ]
+    col_defs = []
 
-    # Add extra columns (anything not in required_cols)
-    extra_cols = [col for col in columns if col not in required_cols]
-    col_defs.extend(f"{col} TEXT" for col in extra_cols)
+    for column in columns:
+        if column == pos_col:
+            col_defs.append(f'{column} INTEGER')
+        elif column == pval_col:
+            col_defs.append(f'{column} REAL')
+        else:
+            col_defs.append(f'{column} TEXT')
 
     create_table_sql = f'''
     CREATE TABLE IF NOT EXISTS variants (
         {','.join(col_defs)},
-        UNIQUE(chrm, pos)
+        UNIQUE({chrm_col}, {pos_col})
     )
     '''
 
     cursor.execute(create_table_sql)
 
     # Create indexes for faster queries
-    cursor.execute('CREATE INDEX IF NOT EXISTS chr_pos_idx ON variants(chrm, pos)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS pval_idx ON variants(pval)')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS chr_pos_idx ON variants({chrm_col}, {pos_col})')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS pval_idx ON variants({pval_col})')
 
     conn.commit()
     conn.close()
 
 
-def load_data(db_path: str, tsv_file) -> None:
-    columns = get_column_names(tsv_file)
+def load_data(db_path: str, tsv_path: str) -> None:
+    columns = get_column_names(tsv_path)
     setup_database(db_path, columns)
 
-    # Find indices of required columns
-    col_indices = {
-        'chrm': columns.index('chrm'),
-        'pos': columns.index('pos'),
-        'pval': columns.index('pval')
-    }
+    chrm_idx = columns.index(chrm_col)
+    pos_idx = columns.index(pos_col)
+    pval_idx = columns.index(pval_col)
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # Skip header
-    next(tsv_file)
-    tsv_reader = csv.reader(tsv_file, delimiter='\t')
+    with open(tsv_path, 'r') as tsv_file:
+        # Skip header
+        next(tsv_file)
+        tsv_reader = csv.reader(tsv_file, delimiter='\t')
 
-    # Prepare data for batch insert
-    data = []
-    for row in tsv_reader:
-        # Convert position to int and pval to float
-        row_data = list(row)  # Convert to list to allow modification
-        row_data[col_indices['pos']] = int(row_data[col_indices['pos']])
-        pval_literal = row_data[col_indices['pval']]
-        pval_literal = pval_literal.upper().replace('EE', 'E')  # Fix scientific notation
-        pval = float(pval_literal) if pval_literal != 'NA' else pval_literal
-        # pval = float(pval_literal) if pval_literal != 'NA' else 0
-        row_data[col_indices['pval']] = pval
+        # Prepare data for batch insert
+        data = []
+        for i, row in enumerate(tsv_reader):
+            # Convert position to int and pval to float
+            row_data = list(row)  # Convert to list to allow modification
+            if len(row_data) != 3: # ignore problem columns
+                continue
+            row_data[pos_idx] = int(row_data[chrm_idx])
+            pval_literal = row_data[pval_idx]
+            pval_literal = pval_literal.upper().replace('EE', 'E')  # Fix scientific notation
+            pval = float(pval_literal) if pval_literal != 'NA' else pval_literal
+            # pval = float(pval_literal) if pval_literal != 'NA' else 0
+            row_data[pval_idx] = pval
 
-        try:
-            data.append(tuple(row_data))
-        except IndexError as e:
-            print(f"Warning: Error processing row {row}: {e}")
-            continue
+            try:
+                data.append(tuple(row_data))
+            except IndexError as e:
+                print(f"Warning: Error processing row {row}: {e}")
+                continue
 
-    # Create the INSERT statement dynamically
-    placeholders = ','.join(['?' for _ in columns])
-    insert_sql = f'''
-        INSERT OR REPLACE INTO variants 
-        ({','.join(columns)})
-        VALUES ({placeholders})
-    '''
+        # Create the INSERT statement dynamically
+        placeholders = ','.join(['?' for _ in columns])
+        insert_sql = f'''
+            INSERT OR REPLACE INTO variants 
+            ({','.join(columns)})
+            VALUES ({placeholders})
+        '''
 
-    # Batch insert
-    cursor.executemany(insert_sql, data)
+        # Batch insert
+        cursor.executemany(insert_sql, data)
 
     conn.commit()
     conn.close()
@@ -109,14 +113,14 @@ def query_interval(
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute('''
+    cursor.execute(f'''
         SELECT *
         FROM variants
-        WHERE chrm = ?
-        AND pos >= ?
-        AND pos <= ?
-        AND pval <= ?
-        ORDER BY pos
+        WHERE {chrm_col} = ?
+        AND {pos_col} >= ?
+        AND {pos_col} <= ?
+        AND {pval_col} <= ?
+        ORDER BY {pos_col}
     ''', (chrm, start_pos, end_pos, max_pval))
 
     results = cursor.fetchall()
@@ -204,8 +208,8 @@ def main():
     TSV_PATH = gwas
     pval = float(args.pval_threshold)
 
-    with open(TSV_PATH, 'rt') as file:
-        load_data(DB_PATH, file)
+    # prepare database
+    load_data(DB_PATH, TSV_PATH)
 
     output_tabix_query_file = os.path.join(args.out)
     out_file = open(output_tabix_query_file, 'a')
