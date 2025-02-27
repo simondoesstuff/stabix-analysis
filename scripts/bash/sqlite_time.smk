@@ -9,7 +9,7 @@ from types import SimpleNamespace
 config = SimpleNamespace(**config)
 
 # make a list of GWAS files from the manifest
-PD_MANIFEST=pd.read_csv(f"{config.ukbb_manifest}", sep='t')
+PD_MANIFEST=pd.read_csv(f"{config.ukbb_manifest}", sep='\t')
 
 # get list of gwas bgz files and tabix files
 BGZ_FILE_NAMES = PD_MANIFEST["filename"].tolist()
@@ -49,9 +49,8 @@ rule search:
         # TODO: reusing the "tabix_dir" is wack
         """
         mkdir -p {config.gwas_dir}
-        conda activate snakemake
         cd {config.root_dir}
-        python {config.scripts_dir}sqlite_query.py \
+        python {config.scripts_dir}sqlite_hdf5/sqlite_query.py \
         --bed {config.bed_file} \
         --gwas {input.tsv_file_name} \
         --pval_threshold {config.pval_threshold} \

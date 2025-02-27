@@ -73,7 +73,7 @@ rule tabix_search:
         mkdir -p {config.gwas_dir}
         # conda activate snakemake
         cd {config.root_dir}
-        python {config.scripts_dir}tabix_query.py \
+        python {config.scripts_dir}tabix/tabix_query.py \
         --bed {config.bed_file} \
         --gwas {input.bgz_file_name} \
         --pval_threshold {config.pval_threshold} \
