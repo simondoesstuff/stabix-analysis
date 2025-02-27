@@ -11,7 +11,7 @@ from types import SimpleNamespace
 config = SimpleNamespace(**config)
 
 # make a list of GWAS files from the manifest
-PD_MANIFEST=pd.read_csv(f"{config.ukbb_manifest}")
+PD_MANIFEST=pd.read_csv(f"{config.ukbb_manifest}", sep="\t")
 
 # get list of gwas bgz files and tabix files
 BGZ_FILE_NAMES = PD_MANIFEST["filename"].tolist()
@@ -34,6 +34,7 @@ rule compress_lazer:
         lazer_file_name=f"{config.gwas_dir}{{root_file_name}}_2000_combo-xzb/{{root_file_name}}_2000_combo-xzb.grlz",
         genomic_index_file_name=f"{config.gwas_dir}{{root_file_name}}_2000_combo-xzb/genomic.idx"
     shell:
+        # TODO: why isn't ths necessary config yml file marked as an input?
         """
         ./{config.bin_dir}gwas_compress {config.config_dir}{wildcards.root_file_name}_2000_combo-xzb.yml
         """
