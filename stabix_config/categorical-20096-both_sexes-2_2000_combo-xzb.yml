@@ -1,0 +1,29 @@
+gwas_file:
+  data/gwas/categorical-20096-both_sexes-2.tsv
+
+block_size:
+  2000
+
+out_name:
+  combo-xzb
+
+query:
+  genomic:
+    data/bed_files/hg19.protein_coding.bed
+  col_idx:
+    8.0
+  bins:
+    0.3, 4.3, 7.29
+  threshold:
+    >= 7.3
+
+extra_index:
+  pval
+
+codecs:
+  int:
+    xz
+  float:
+    zlib
+  string:
+    bz2
