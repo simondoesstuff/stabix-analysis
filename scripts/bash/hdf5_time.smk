@@ -22,12 +22,12 @@ rule all:
     input:
         expand(f"{config.tabix_dir}{{root_file_name}}_hdf5_output.txt", root_file_name=ROOT_FILE_NAMES)
 
-rule download_bgz:
-    message: "Downloading bgz files."
+rule download_tsv:
+    message: "Downloading .tsv.bgz files."
     input:
         manifest=f"{config.ukbb_manifest}"
     output:
-        bgz_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv.bgz"
+        tsv_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv"
     params:
         url=lambda wildcards: BGZ_URLS[ROOT_FILE_NAMES.index(wildcards.root_file_name)]
     shell:
@@ -35,12 +35,13 @@ rule download_bgz:
         mkdir -p {config.gwas_dir}
         cd {config.gwas_dir}
         {params.url}
+        bgzip -d {output.tsv_file_name}.bgz
         """
 
 rule search:
     message: "Searching files with hdf5 (applying pvalue threshold)."
     input:
-        bgz_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv.bgz",
+        tsv_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv",
         pval_indexes=f"{config.pval_indexes}"
     output:
         f"{config.tabix_dir}{{root_file_name}}_hdf5_output.txt"
@@ -52,7 +53,7 @@ rule search:
         cd {config.root_dir}
         python {config.scripts_dir}hdf5_query.py \
         --bed {config.bed_file} \
-        --gwas {input.bgz_file_name} \
+        --gwas {input.tsv_file_name} \
         --pval_threshold {config.pval_threshold} \
         --out {config.tabix_dir}{wildcards.root_file_name}_hdf5_output.txt
         """

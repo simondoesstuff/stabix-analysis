@@ -9,7 +9,7 @@ from types import SimpleNamespace
 config = SimpleNamespace(**config)
 
 # make a list of GWAS files from the manifest
-PD_MANIFEST=pd.read_csv(f"{config.ukbb_manifest}")
+PD_MANIFEST=pd.read_csv(f"{config.ukbb_manifest}", sep='t')
 
 # get list of gwas bgz files and tabix files
 BGZ_FILE_NAMES = PD_MANIFEST["filename"].tolist()
@@ -22,12 +22,12 @@ rule all:
     input:
         expand(f"{config.tabix_dir}{{root_file_name}}_sqlite_output.txt", root_file_name=ROOT_FILE_NAMES)
 
-rule download_bgz:
-    message: "Downloading bgz files."
+rule download_tsv:
+    message: "Downloading .tsv.bgz files."
     input:
         manifest=f"{config.ukbb_manifest}"
     output:
-        bgz_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv.bgz"
+        tsv_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv"
     params:
         url=lambda wildcards: BGZ_URLS[ROOT_FILE_NAMES.index(wildcards.root_file_name)]
     shell:
@@ -35,12 +35,13 @@ rule download_bgz:
         mkdir -p {config.gwas_dir}
         cd {config.gwas_dir}
         {params.url}
+        bgzip -d {output.tsv_file_name}.bgz
         """
 
 rule search:
     message: "Searching files with sqlite (applying pvalue threshold)."
     input:
-        bgz_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv.bgz",
+        tsv_file_name=f"{config.gwas_dir}{{root_file_name}}.tsv",
         pval_indexes=f"{config.pval_indexes}"
     output:
         f"{config.tabix_dir}{{root_file_name}}_sqlite_output.txt"
@@ -52,7 +53,7 @@ rule search:
         cd {config.root_dir}
         python {config.scripts_dir}sqlite_query.py \
         --bed {config.bed_file} \
-        --gwas {input.bgz_file_name} \
+        --gwas {input.tsv_file_name} \
         --pval_threshold {config.pval_threshold} \
         --out {config.tabix_dir}{wildcards.root_file_name}_sqlite_output.txt
         """
