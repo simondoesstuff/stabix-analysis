@@ -346,6 +346,8 @@ def write_all_files_table(all_gene_times,
         # file_name: {tsv, bgz, tbi, xxx, gen, pval, full_ratio, tbx_ratio, genes, snps, wins, speedup}
         data_dict = defaultdict()
 
+        # TODO: this object should be passed in.
+        #  this is preventing the method from being used in a different context
         file_name_traits = {'continuous-103220-both_sexes': 'shellfish intake',
                             'phecode-282.5-both_sexes': 'sickle cell anemia',
                             'categorical-20096-both_sexes-2': 'size of red wine glass drunk',
