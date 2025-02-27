@@ -5,7 +5,7 @@ bed_file:
   "data/bed_files/hg19.protein_coding.bed"
 
 pval_threshold:
-  7e-2
+  7.3
 
 pval_indexes:
   "data/test/ten_pvals.txt"
