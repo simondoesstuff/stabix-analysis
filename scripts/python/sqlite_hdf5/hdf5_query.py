@@ -19,18 +19,19 @@ def setup_dataset(h5_path: str, columns: List[str], pval_col) -> None:
         columns: List of column names from TSV header
     """
     # Verify required columns exist
-    required_cols = {'chrm', 'pos', 'ref', 'alt', pval_col}
+    required_cols = {'chrm', 'pos', pval_col}
     if not required_cols.issubset(set(columns)):
         missing = required_cols - set(columns)
         raise ValueError(f"Missing required columns: {missing}")
 
+    # INFO: only storing indexed columns for performance reasons
     target_columns = list()
     for col in columns:
         if col == pval_col:
-            target_columns.append((pval_col, 'float64'))
+            target_columns.append((col, 'float64'))
         elif col == 'pos':
             target_columns.append((col, 'int32'))
-        else:
+        elif col == 'chrm':
             target_columns.append((col, h5py.string_dtype(encoding='utf-8')))
 
     with h5py.File(h5_path, 'w') as f:
@@ -58,19 +59,24 @@ def load_data(h5_path: str, tsv_path: str, pval_col) -> None:
     col_indices = {
         'chrm': columns.index('chrm'),
         'pos': columns.index('pos'),
-        'ref': columns.index('ref'),
-        'alt': columns.index('alt'),
         pval_col: columns.index(pval_col)
     }
+
+    # INFO: skipping non-indexed columns for performance reasons
+    target_columns = [ 'chrm', 'pos', pval_col ]
 
     # Read all data first to determine array sizes
     data: Dict[str, List] = {col: [] for col in columns}
 
+    print("... Parsing input")
     with open(tsv_path, 'r') as tsv_file:
         next(tsv_file)  # Skip header
         tsv_reader = csv.reader(tsv_file, delimiter='\t')
 
-        for row in tsv_reader:
+        for i, row in enumerate(tsv_reader):
+            if i % 10000 == 0:
+                print(f"line {i}")
+
             pval_idx = col_indices[pval_col]
 
             if pval_idx >= len(row):
@@ -83,7 +89,8 @@ def load_data(h5_path: str, tsv_path: str, pval_col) -> None:
 
             try:
                 # Store each column's data
-                for idx, col in enumerate(columns):
+                for col in target_columns:
+                    idx = col_indices[col]
                     val = row[idx]
 
                     # Convert types for required numeric columns
@@ -99,12 +106,14 @@ def load_data(h5_path: str, tsv_path: str, pval_col) -> None:
                 continue
 
     # Write data to HDF5 file
+    print("... Writing index")
     with h5py.File(h5_path, 'a') as tsv_file:
         variants = tsv_file['variants']
         n_rows = len(data['chrm'])
 
         # Resize and write each dataset
-        for col in columns:
+        for i, col in enumerate(target_columns):
+            print(f"col: {col}")
             dataset = variants[col]
             dataset.resize((n_rows,))
 
@@ -140,6 +149,8 @@ def query_interval(
     with h5py.File(h5_path, 'r') as f:
         variants = f['variants']
         columns = list(f['metadata'].attrs['columns'])
+        # INFO: skipping non-indexed columns for performance reasons
+        target_columns = [ 'chrm', 'pos', pval_col ]
 
         # Convert chromosome strings for comparison
         chrm_array = variants['chrm'][:]
@@ -163,7 +174,7 @@ def query_interval(
         results = []
         for idx in indices:
             row = []
-            for col in columns:
+            for col in target_columns:
                 val = variants[col][idx]
                 if isinstance(val, np.bytes_):
                     val = val.decode('utf-8')
@@ -171,7 +182,7 @@ def query_interval(
             results.append(tuple(row))
 
         # Sort results by position
-        results.sort(key=lambda x: x[columns.index('pos')])
+        # results.sort(key=lambda x: x[columns.index('pos')])
 
         return results, columns
 
@@ -257,7 +268,9 @@ def main():
     columns = get_column_names(TSV_PATH)
     pval_col = guess_pval_col(columns)
 
+    print("... Indexing.")
     load_data(H5_PATH, TSV_PATH, pval_col)
+    print("Index created.")
 
     output_tabix_query_file = os.path.join(args.out)
     out_file = open(output_tabix_query_file, 'a')
@@ -266,7 +279,9 @@ def main():
     out_file.write('GWAS file: {}\n'.format(gwas_file_basename))
 
     genes = get_genes(args.bed)
-    for gene in genes:
+    for i, gene in enumerate(genes):
+        if i % 100 == 0:
+            print(f"{i} / {len(genes)}")
         for chrom in genes[gene]:
             for start, end in genes[gene][chrom]:
                 start_time = time.time()
