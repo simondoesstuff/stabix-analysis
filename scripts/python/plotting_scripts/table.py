@@ -11,6 +11,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Write table of info for files')
     parser.add_argument('--data', type=str, required=True,
                         help='dir with data')
+    parser.add_argument('--compare_out', type=str, required=True,
+                        help='dir with data, such as "tabix_out/"')
     parser.add_argument('--bed', type=str, required=True,
                         help='bed file genes')
     parser.add_argument('--out', type=str, required=True,
@@ -25,16 +27,16 @@ def main():
     data = args.data
     bed = args.bed
     out = args.out
-    name = args.name or 'tabix'
+    compare_name = args.name or 'tabix'
 
-    out_names = ['combo-xbb']
+    out_names = ['combo-xzb']
     block_sizes = ['2000']
 
     files = pltut.read_pvals(data + '/pvals.txt').keys()
     genes = pltut.read_bed_file(bed)
 
-    tabix_out_dir = data + '/tabix_output/'
-    data_dir = data + 'data/'
+    tabix_out_dir = args.compare_out
+    data_dir = data
 
     # get tabix data
 
@@ -48,7 +50,7 @@ def main():
 
     for f in files:
         tabix_gene_times, tabix_gene_records, tabix_gene_pval_hits = (
-            pltut.read_genes(tabix_out_dir + f + f'_{name}_output.txt', False))
+            pltut.read_genes(tabix_out_dir + f + f'_{compare_name}_output.txt', False))
         all_gene_times[f] = {'tabix': tabix_gene_times[f]}
         all_gene_records[f] = {'tabix': tabix_gene_records[f]}
         all_gene_pval_hits[f] = {'tabix': tabix_gene_pval_hits[f]}
@@ -57,40 +59,38 @@ def main():
             for name in out_names:
                 base_name = f + '_' + block_size + '_' + name
                 file_dir = data_dir + base_name + '/'
+                tsv = data_dir + f + '.tsv'
+                tsv_size = os.path.getsize(tsv)
+                bgz = data_dir + f + '.tsv.bgz'
+                bgz_size = os.path.getsize(bgz)
+                tbi = data_dir + f + '.tsv'
+                tbi += 'bgz.tbi' if compare_name == 'tabix' else '.db'
+                tbi_size = os.path.getsize(tbi)
+                xxx = file_dir + base_name + '.grlz'
+                xxx_size = os.path.getsize(xxx)
+                gen = file_dir + 'genomic.idx'
+                gen_size = os.path.getsize(gen)
+                pval = file_dir + 'pval.idx'
+                pval_size = os.path.getsize(pval)
+
+                genomic_index = pltut.read_genomic_index(gen)
+                all_genomic_indexes[f][block_size] = {name: genomic_index}
+
+                xxx_query = file_dir + f + '.query'
+                xxx_gene_times, xxx_gene_records, xxx_gene_pval_hits = \
+                    pltut.read_genes(xxx_query, True)
                 try:
-                    tsv = data_dir + f + '.tsv'
-                    tsv_size = os.path.getsize(tsv)
-                    bgz = data_dir + f + '.tsv.bgz'
-                    bgz_size = os.path.getsize(bgz)
-                    tbi = data_dir + f + '.tsv.bgz.tbi'
-                    tbi_size = os.path.getsize(tbi)
-                    xxx = file_dir + base_name + '.grlz'
-                    xxx_size = os.path.getsize(xxx)
-                    gen = file_dir + 'genomic.idx'
-                    gen_size = os.path.getsize(gen)
-                    pval = file_dir + 'pval.idx'
-                    pval_size = os.path.getsize(pval)
+                    all_gene_times[f][block_size] = {name: xxx_gene_times[f]}
+                    all_gene_records[f][block_size] = {name: xxx_gene_records[f]}
+                    all_gene_pval_hits[f][block_size] = {name: xxx_gene_pval_hits[f]}
+                except KeyError:
+                    all_gene_times[f] = {block_size: {name: xxx_gene_times[f]}}
+                    all_gene_records[f] = {block_size: {name: xxx_gene_records[f]}}
+                    all_gene_pval_hits[f] = {block_size: {name: xxx_gene_pval_hits[f]}}
 
-                    genomic_index = pltut.read_genomic_index(gen)
-                    all_genomic_indexes[f][block_size] = {name: genomic_index}
-
-                    xxx_query = file_dir + f + '.query'
-                    xxx_gene_times, xxx_gene_records, xxx_gene_pval_hits = \
-                        pltut.read_genes(xxx_query, True)
-                    try:
-                        all_gene_times[f][block_size] = {name: xxx_gene_times[f]}
-                        all_gene_records[f][block_size] = {name: xxx_gene_records[f]}
-                        all_gene_pval_hits[f][block_size] = {name: xxx_gene_pval_hits[f]}
-                    except KeyError:
-                        all_gene_times[f] = {block_size: {name: xxx_gene_times[f]}}
-                        all_gene_records[f] = {block_size: {name: xxx_gene_records[f]}}
-                        all_gene_pval_hits[f] = {block_size: {name: xxx_gene_pval_hits[f]}}
-
-                    compressed_files[f] = {'tsv': tsv_size,
-                                           'bgz': bgz_size, 'tbi': tbi_size,
-                                           'xxx': xxx_size, 'gen': gen_size, 'pval': pval_size}
-                except FileNotFoundError:
-                    print('File not found: ' + base_name)
+                compressed_files[f] = {'tsv': tsv_size,
+                                       'bgz': bgz_size, 'tbi': tbi_size,
+                                       'xxx': xxx_size, 'gen': gen_size, 'pval': pval_size}
 
                 num_files += 1
 
@@ -106,7 +106,7 @@ def main():
                                 block_sizes,
                                 genes,
                                 out + 'table.csv',
-                                name)
+                                compare_name)
 
 if __name__ == '__main__':
     main()
