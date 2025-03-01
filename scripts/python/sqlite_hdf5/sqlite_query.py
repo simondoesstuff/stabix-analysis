@@ -245,7 +245,5 @@ def main():
                 duration = end_time - start_time
                 out_file.write('Gene: {},time: {}\n'.format(gene, duration))
 
-    os.remove(DB_PATH)
-
 if __name__ == "__main__":
     main()
