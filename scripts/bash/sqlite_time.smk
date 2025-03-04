@@ -47,11 +47,6 @@ rule search:
     shell:
         # TODO: reusing the "tabix_dir" is wack
         """
-        mkdir -p {config.gwas_dir}
-        cd {config.root_dir}
-        python {config.scripts_dir}sqlite_hdf5/sqlite_query.py \
-        --bed {config.bed_file} \
-        --gwas {input.tsv_file_name} \
-        --pval_threshold {config.pval_threshold} \
-        --out {config.tabix_dir}{wildcards.root_file_name}_sqlite_output.txt
+        echo "TODO: sqlite_time.smk must supply pval_col names or ids to the new sqlite_time.py script."
+        exit 1
         """
