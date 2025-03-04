@@ -2,6 +2,8 @@ import sqlite3
 import argparse
 import csv
 from pathlib import Path
+import time
+from utils import get_genes
 
 
 def create_table(cur, header, pval_column):
@@ -52,7 +54,7 @@ def import_tsv(cur, tsv_path, header, pval_column):
                 ','.join(['?']*len(header))), rows)
 
 
-def main(tsv_files, db_path, pval_column):
+def main(tsv_files, db_path, pval_column, timings_path=None, bed_path=None, pval=None):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
@@ -70,6 +72,36 @@ def main(tsv_files, db_path, pval_column):
     cur.execute(
         f"CREATE INDEX idx_chr_pos_pval ON variants (chr, pos, {pval_column})")
     conn.commit()
+
+    # Perform query
+    if not timings_path or not bed_path or not pval:
+        print("Timings require parameters: timings_path, bed_path, and pval")
+        return
+
+    print("Index created. Performing query...")
+
+    with open(timings_path, 'w') as f:
+        base_name = Path(db_path).stem
+        f.write(f"GWAS file: {base_name}\n")
+        genes = get_genes(bed_path)
+
+        for gene in genes:
+            for chrom in genes[gene]:
+                for start, end in genes[gene][chrom]:
+                    t0 = time.time()
+
+                    cur.execute(
+                        f"""SELECT * FROM variants
+                        WHERE chr = "{chrom}"
+                        AND pos >= {start}
+                        AND pos <= {end}
+                        AND {pval_column} {pval};""")
+                    _ = cur.fetchall()  # results are discarded
+
+                    t1 = time.time()
+                    duration = t1 - t0
+                    f.write(f'Gene: {gene},time: {duration}\n')
+
     conn.close()
 
 
@@ -79,7 +111,13 @@ if __name__ == "__main__":
     parser.add_argument('--tsv', nargs='+', required=True,
                         help='Input TSV files.')
     parser.add_argument('--db', required=True, help='Output SQLite DB path.')
-    parser.add_argument('--pval-col', required=True,
+    parser.add_argument('--pval_col', required=True,
                         help='P-value column name.')
+    parser.add_argument('--timings', required=False,
+                        help='Output timings data path.')
+    parser.add_argument('--bed', required=False,
+                        help='Input bed data path.')
+    parser.add_argument('--pval', required=False,
+                        help='P-value condition. eg: ">= 7.3"')
     args = parser.parse_args()
-    main(args.tsv, args.db, args.pval_col)
+    main(args.tsv, args.db, args.pval_col, args.timings, args.bed, args.pval)
