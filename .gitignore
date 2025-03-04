@@ -4,3 +4,5 @@ data/UKBB/PUKBB-phenotype_manifest.tsv
 
 *__pycache__*
 .idea/*
+.snakemake
+.direnv
