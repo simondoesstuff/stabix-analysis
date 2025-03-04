@@ -15,7 +15,7 @@ query:
   bins:
     0.3, 4.3, 7.29
   threshold:
-    <= 7.3
+    >= 7.3
 
 extra_index:
   pval
