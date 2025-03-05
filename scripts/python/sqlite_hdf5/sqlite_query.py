@@ -9,7 +9,7 @@ from utils import get_genes
 def create_table(cur, header, pval_column):
     columns = []
     for col in header:
-        if col == 'chr' or col == 'pos':
+        if col == 'pos':
             dtype = 'INTEGER'
         elif col == pval_column:
             dtype = 'REAL'
@@ -23,7 +23,7 @@ def create_table(cur, header, pval_column):
 def process_value(value, col_name, pval_column):
     if value == 'NA':
         return None
-    if col_name == 'chr' or col_name == 'pos':
+    if col_name == 'pos':
         try:
             return int(value)
         except:
@@ -88,6 +88,7 @@ def main(tsv_files, db_path, pval_column, timings_path=None, bed_path=None, pval
             base_name = Path(db_path).stem
             f.write(f"GWAS file: {base_name}\n")
             genes = get_genes(bed_path)
+            total = 0
 
             for gene in genes:
                 for chrom in genes[gene]:
@@ -100,13 +101,14 @@ def main(tsv_files, db_path, pval_column, timings_path=None, bed_path=None, pval
                             AND pos >= {start}
                             AND pos <= {end}
                             AND {pval_column} {pval};""")
-                        _ = cur.fetchall()  # results are discarded
+                        results = cur.fetchall()  # results are discarded
+                        total += len(results)
 
                         t1 = time.time()
                         duration = t1 - t0
                         f.write(f'Gene: {gene},time: {duration}\n')
 
-        print("Done")
+        print(f"Done. {total} row(s) answered query.")
 
     finally:
         conn.close()  # absolutely
