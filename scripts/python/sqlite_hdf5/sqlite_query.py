@@ -73,36 +73,43 @@ def main(tsv_files, db_path, pval_column, timings_path=None, bed_path=None, pval
         f"CREATE INDEX idx_chr_pos_pval ON variants (chr, pos, {pval_column})")
     conn.commit()
 
-    # Perform query
-    if not timings_path or not bed_path or not pval:
-        print("Timings require parameters: timings_path, bed_path, and pval")
-        return
+    print("Database created")
 
-    print("Index created. Performing query...")
+    try:
 
-    with open(timings_path, 'w') as f:
-        base_name = Path(db_path).stem
-        f.write(f"GWAS file: {base_name}\n")
-        genes = get_genes(bed_path)
+        # Perform query
+        if not timings_path or not bed_path or not pval:
+            print("Skipping query because missing timings_path, bed_path or pval")
+            return
 
-        for gene in genes:
-            for chrom in genes[gene]:
-                for start, end in genes[gene][chrom]:
-                    t0 = time.time()
+        print("Performing query")
 
-                    cur.execute(
-                        f"""SELECT * FROM variants
-                        WHERE chr = "{chrom}"
-                        AND pos >= {start}
-                        AND pos <= {end}
-                        AND {pval_column} {pval};""")
-                    _ = cur.fetchall()  # results are discarded
+        with open(timings_path, 'w') as f:
+            base_name = Path(db_path).stem
+            f.write(f"GWAS file: {base_name}\n")
+            genes = get_genes(bed_path)
 
-                    t1 = time.time()
-                    duration = t1 - t0
-                    f.write(f'Gene: {gene},time: {duration}\n')
+            for gene in genes:
+                for chrom in genes[gene]:
+                    for start, end in genes[gene][chrom]:
+                        t0 = time.time()
 
-    conn.close()
+                        cur.execute(
+                            f"""SELECT * FROM variants
+                            WHERE chr = "{chrom}"
+                            AND pos >= {start}
+                            AND pos <= {end}
+                            AND {pval_column} {pval};""")
+                        _ = cur.fetchall()  # results are discarded
+
+                        t1 = time.time()
+                        duration = t1 - t0
+                        f.write(f'Gene: {gene},time: {duration}\n')
+
+        print("Done")
+
+    finally:
+        conn.close()  # absolutely
 
 
 if __name__ == "__main__":
