@@ -8,40 +8,48 @@ from pathlib import Path
 def build_gwas_hdf5(tsv_path, hdf5_path, pval_col, chunksize=10000):
     """Convert GWAS TSV to optimized HDF5 format with chromosome-specific tables."""
     with pd.HDFStore(hdf5_path, mode='w') as store:
-        for chunk in pd.read_csv(
-            tsv_path,
-            sep='\t',
-            chunksize=chunksize,
-            dtype={'chr': str},  # Handle non-numeric chromosomes
-            na_values=['NA'],
-            low_memory=False
-        ):
-            # Clean chromosome names and process in memory-efficient manner
-            chunk['chr'] = chunk['chr'].astype(str).str.strip().str.upper()
+        for chunk in pd.read_csv(tsv_path, sep='\t', chunksize=chunksize,
+                                 na_values=['NA'], keep_default_na=False,
+                                 # Keep chr as string
+                                 dtype={'chr': 'category'},
+                                 true_values=['true'],
+                                 false_values=['false']):
+            # Process each column type
+            for col in chunk.columns:
+                if col == 'pos':
+                    chunk[col] = pd.to_numeric(
+                        chunk[col], errors='coerce').astype('int32')
+                elif col == pval_col:
+                    chunk[col] = pd.to_numeric(
+                        chunk[col], errors='coerce').astype('float32')
+                else:
+                    chunk[col] = chunk[col].astype(str).str.slice(0, 6)
 
+            # Group and store by chromosome
             for chr_name, group in chunk.groupby('chr', observed=True):
-                key = f"/chr{chr_name}"
+                key = f"/chr{chr_name.strip().upper()}"
                 group = group.drop(columns=['chr']).sort_values('pos')
 
-                # Append to HDF5 with optimized typing
                 store.append(
                     key,
                     group,
                     format='table',
-                    data_columns=['chr', 'pos', pval_col],
                     index=False,
-                    min_itemsize=25  # Handle string columns efficiently
-                )
+                    # chr not included its the top level key
+                    data_columns=['pos', pval_col],
+                    min_itemsize={
+                        col: 6 for col in group.select_dtypes('string').columns})
 
 
 def query_gwas(db_path, bed_path, timings_path, pval_col, pval):
     """Query GWAS data with chromosome-aware filtering."""
+    total = 0
+
     with pd.HDFStore(db_path, mode='r') as store:
         with open(timings_path, 'w') as f:
             base_name = Path(db_path).stem
             f.write(f"GWAS file: {base_name}\n")
             genes = get_genes(bed_path)
-            total = 0
 
             for gene in genes:
                 for chrom in genes[gene]:
@@ -69,6 +77,8 @@ def query_gwas(db_path, bed_path, timings_path, pval_col, pval):
                         t1 = time.time()
                         duration = t1 - t0
                         f.write(f'Gene: {gene},time: {duration}\n')
+
+    print(f"Done. {total} row(s) answered query.")
 
 
 def main(tsv_file, db_path, pval_column, timings_path=None, bed_path=None, pval=None):
