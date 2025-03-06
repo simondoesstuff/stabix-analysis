@@ -97,7 +97,7 @@ def main(tsv_files, db_path, pval_column, timings_path=None, bed_path=None, pval
 
                         cur.execute(
                             f"""SELECT * FROM variants
-                            WHERE chr = "{chrom}"
+                            WHERE chr = '{chrom}'
                             AND pos >= {start}
                             AND pos <= {end}
                             AND {pval_column} {pval};""")
