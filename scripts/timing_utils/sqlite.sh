@@ -21,7 +21,7 @@ get_to_work() {
   db="$gwas/$1.db"
 
   if [ -f $db ]; then
-    echo -e "\tAlready exits, skipping: $db..."
+    echo -e "\tAlready exists, skipping: $db..."
   else
     echo -e "\tPreparing $db..."
     python3 scripts/python/sqlite_hdf5/sqlite_query.py \
