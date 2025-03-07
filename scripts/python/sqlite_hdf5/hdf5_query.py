@@ -42,11 +42,21 @@ def build_gwas_hdf5(tsv_path, hdf5_path, pval_col, chunksize=10000):
                         col: 6 for col in group.select_dtypes('string').columns})
 
 
+issue_chroms = set()
+
+
 def query_one(store, chrom, start, end, pval_col, pval):
     chrom = str(chrom).strip().upper()
     key = f"/chr{chrom}"
 
     if key not in store:
+        return pd.DataFrame()
+
+    table_columns = store.get_storer(key).table.colnames
+    if pval_col not in table_columns:
+        if chrom not in issue_chroms:
+            print(f" ! {pval_col} column not found in: {chrom}")
+            issue_chroms.add(chrom)
         return pd.DataFrame()
 
     query = (
