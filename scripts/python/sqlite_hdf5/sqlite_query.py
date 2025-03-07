@@ -1,4 +1,5 @@
 import sqlite3
+import os
 import argparse
 import csv
 from pathlib import Path
@@ -55,6 +56,10 @@ def import_tsv(cur, tsv_path, header, pval_column):
 
 
 def main(tsv_files, db_path, pval_column, timings_path=None, bed_path=None, pval=None):
+    if os.path.exists(db_path):
+        print(f"Database already exists: {db_path}")
+        exit(1)
+
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 

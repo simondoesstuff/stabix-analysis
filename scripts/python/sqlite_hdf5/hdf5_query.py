@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 import time
 from utils import get_genes
 import argparse
@@ -41,7 +42,24 @@ def build_gwas_hdf5(tsv_path, hdf5_path, pval_col, chunksize=10000):
                         col: 6 for col in group.select_dtypes('string').columns})
 
 
-def query_gwas(db_path, bed_path, timings_path, pval_col, pval):
+def query_one(store, chrom, start, end, pval_col, pval):
+    chrom = str(chrom).strip().upper()
+    key = f"/chr{chrom}"
+
+    if key not in store:
+        return pd.DataFrame()
+
+    query = (
+        f"pos >= {start} & "
+        f"pos <= {end} & "
+        f"{pval_col}")
+
+    return store.select(
+        key,
+        where=query)
+
+
+def query_many(db_path, bed_path, timings_path, pval_col, pval):
     """Query GWAS data with chromosome-aware filtering."""
     total = 0
 
@@ -56,20 +74,8 @@ def query_gwas(db_path, bed_path, timings_path, pval_col, pval):
                     for start, end in genes[gene][chrom]:
                         t0 = time.time()
 
-                        chrom = str(chrom).strip().upper()
-                        key = f"/chr{chrom}"
-
-                        if key not in store:
-                            results = pd.DataFrame()
-                        else:
-                            query = (
-                                f"pos >= {start} & "
-                                f"pos <= {end} & "
-                                f"{pval_col} {pval}"
-                            )
-                            results = store.select(
-                                key,
-                                where=query)
+                        results = query_one(
+                            store, chrom, start, end, pval_col, pval)
 
                         if not results.empty:
                             total += len(results)
@@ -82,6 +88,10 @@ def query_gwas(db_path, bed_path, timings_path, pval_col, pval):
 
 
 def main(tsv_file, db_path, pval_column, timings_path=None, bed_path=None, pval=None):
+    if os.path.exists(db_path):
+        print(f"Database already exists: {db_path}")
+        exit(1)
+
     build_gwas_hdf5(tsv_file, db_path, pval_column)
     print("Database created")
 
@@ -90,7 +100,7 @@ def main(tsv_file, db_path, pval_column, timings_path=None, bed_path=None, pval=
         return
 
     print("Performing query")
-    query_gwas(db_path, bed_path, timings_path, pval_column, pval)
+    query_many(db_path, bed_path, timings_path, pval_column, pval)
 
 
 if __name__ == "__main__":
