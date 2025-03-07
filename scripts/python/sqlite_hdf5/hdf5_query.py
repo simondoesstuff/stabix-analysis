@@ -62,7 +62,7 @@ def query_one(store, chrom, start, end, pval_col, pval):
     query = (
         f"pos >= {start} & "
         f"pos <= {end} & "
-        f"{pval_col}")
+        f"{pval_col} {pval}")
 
     return store.select(
         key,
