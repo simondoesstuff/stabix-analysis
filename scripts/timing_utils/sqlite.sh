@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 get_to_work() {
   # ❯ python3 scripts/python/sqlite_hdf5/sqlite_query.py  --help
@@ -19,30 +20,32 @@ get_to_work() {
   gwas="data/gwas"
   db="$gwas/$1.db"
 
-  [ -f $db ] && rm $db # remove iff exists
-
-  echo -e "\tPreparing $db..."
-  python3 scripts/python/sqlite_hdf5/sqlite_query.py \
-    --tsv "$gwas/$1.tsv" \
-    --db $db \
-    --pval_col $2 \
-    --timings tabix_output/$1_sqlite_output.txt \
-    --bed data/bed_files/hg19.protein_coding.bed \
-    --pval ">= 7.3"
+  if [ -f $db ]; then
+    echo -e "\tAlready exits, skipping: $db..."
+  else
+    echo -e "\tPreparing $db..."
+    python3 scripts/python/sqlite_hdf5/sqlite_query.py \
+      --tsv "$gwas/$1.tsv" \
+      --db $db \
+      --pval_col $2 \
+      --timings tabix_output/$1_sqlite_output.txt \
+      --bed data/bed_files/hg19.protein_coding.bed \
+      --pval ">= 7.3"
+  fi
 }
 
 pval="neglog10_pval_meta_hq"
 get_to_work categorical-1210-both_sexes-1210 $pval
-get_to_work categorical-20096-both_sexes-2 $pval
 get_to_work categorical-20116-both_sexes-0 $pval
-get_to_work phecode-250-both_sexes-1210 $pval
 get_to_work phecode-250-both_sexes $pval
 get_to_work phecode-250.2-both_sexes $pval
-get_to_work phecode-282.5-both_sexes $pval
-get_to_work phecode-696.4-both_sexes $pval
-pval="neglog10_pval_EAS"
-get_to_work continuous-103220-both_sexes $pval
 get_to_work continuous-50-both_sexes-irnt $pval
 get_to_work continuous-30130-both_sexes-irnt $pval
+pval="neglog10_pval_meta"
+get_to_work phecode-696.4-both_sexes $pval
+get_to_work categorical-20096-both_sexes-2 $pval
+pval="neglog10_pval_EAS"
+get_to_work continuous-103220-both_sexes $pval
+get_to_work phecode-282.5-both_sexes $pval
 
 echo "Celebrate."
