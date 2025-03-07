@@ -1,8 +1,8 @@
-data/local_gwas_files/*
-data/gwas
-data/UKBB/PUKBB-phenotype_manifest.tsv
-
 *__pycache__*
 .idea/*
 .snakemake
 .direnv
+
+data/local_gwas_files/*
+data/UKBB/PUKBB-phenotype_manifest.tsv
+tabix_output
